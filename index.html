@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Snake Game with High Score</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+            font-size: 2.5rem;
+            text-shadow: 0 0 10px #4caf50;
+        }
+
+        #score-board {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .score-box {
+            background: #2a2a2a;
+            padding: 5px 15px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        #score {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        #high-score {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+
+        canvas {
+            background-color: #000000;
+            border: 4px solid #4caf50;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+
+        #game-over-text {
+            display: none;
+            position: absolute;
+            font-size: 2rem;
+            color: #ff5722;
+            text-shadow: 0 0 10px #ff5722;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #ff5722;
+            text-align: center;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>SNAKE</h1>
+    <div id="score-board">
+        <div class="score-box">Score: <span id="score">0</span></div>
+        <div class="score-box">High Score: <span id="high-score">0</span></div>
+    </div>
+    
+    <div id="game-over-text">
+        GAME OVER<br>
+        <span id="new-high-score-msg" style="font-size: 1.2rem; color: #ffeb3b; display: none;">New High Score!🏆<br></span>
+        <span style="font-size: 1.2rem; color: #fff;">Press SPACE to Restart</span>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+        const highScoreElement = document.getElementById("high-score");
+        const gameOverText = document.getElementById("game-over-text");
+        const newHighScoreMsg = document.getElementById("new-high-score-msg");
+
+        // Grid configurations
+        const gridSize = 20; 
+        const tileCount = canvas.width / gridSize;
+
+        // Game state variables
+        let snake = [];
+        let food = { x: 0, y: 0 };
+        let dx = gridSize; 
+        let dy = 0;        
+        let score = 0;
+        let highScore = localStorage.getItem("snakeHighScore") || 0; // Load from local storage
+        let gameInterval;
+        let changingDirection = false; 
+
+        // Initialize display of high score
+        highScoreElement.textContent = highScore;
+
+        // Start the game loop
+        resetGame();
+
+        // Listen to keyboard inputs
+        document.addEventListener("keydown", changeDirection);
+
+        function resetGame() {
+            snake = [
+                { x: gridSize * 5, y: gridSize * 5 },
+                { x: gridSize * 4, y: gridSize * 5 },
+                { x: gridSize * 3, y: gridSize * 5 }
+            ];
+            dx = gridSize;
+            dy = 0;
+            score = 0;
+            scoreElement.textContent = score;
+            gameOverText.style.display = "none";
+            newHighScoreMsg.style.display = "none";
+            placeFood();
+            
+            clearInterval(gameInterval);
+            gameInterval = setInterval(update, 100); 
+        }
+
+        // Main game loop iteration
+        function update() {
+            if (hasGameEnded()) {
+                handleGameOver();
+                return;
+            }
+
+            changingDirection = false;
+            clearCanvas();
+            drawFood();
+            moveSnake();
+            drawSnake();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawSnake() {
+            snake.forEach((part, index) => {
+                ctx.fillStyle = index === 0 ? "#4caf50" : "#2e7d32";
+                ctx.strokeStyle = "#000000";
+                ctx.fillRect(part.x, part.y, gridSize, gridSize);
+                ctx.strokeRect(part.x, part.y, gridSize, gridSize);
+            });
+        }
+
+        function moveSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head);
+
+            const hasEatenFood = snake[0].x === food.x && snake[0].y === food.y;
+            if (hasEatenFood) {
+                score += 10;
+                scoreElement.textContent = score;
+                
+                // Real-time high score updates
+                if (score > highScore) {
+                    highScore = score;
+                    highScoreElement.textContent = highScore;
+                    localStorage.setItem("snakeHighScore", highScore);
+                }
+                
+                placeFood();
+            } else {
+                snake.pop();
+            }
+        }
+
+        function placeFood() {
+            food.x = Math.floor(Math.random() * tileCount) * gridSize;
+            food.y = Math.floor(Math.random() * tileCount) * gridSize;
+
+            snake.forEach(part => {
+                const hasCollided = part.x === food.x && part.y === food.y;
+                if (hasCollided) placeFood();
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = "#ff5722";
+            ctx.fillRect(food.x, food.y, gridSize, gridSize);
+        }
+
+        function changeDirection(event) {
+            const keyPressed = event.keyCode;
+            
+            if (keyPressed === 32 && hasGameEnded()) {
+                resetGame();
+                return;
+            }
+
+            if (changingDirection) return;
+
+            const goingUp = dy === -gridSize;
+            const goingDown = dy === gridSize;
+            const goingRight = dx === gridSize;
+            const goingLeft = dx === -gridSize;
+
+            if (keyPressed === 37 && !goingRight) {
+                dx = -gridSize;
+                dy = 0;
+                changingDirection = true;
+            }
+            if (keyPressed === 38 && !goingDown) {
+                dx = 0;
+                dy = -gridSize;
+                changingDirection = true;
+            }
+            if (keyPressed === 39 && !goingLeft) {
+                dx = gridSize;
+                dy = 0;
+                changingDirection = true;
+            }
+            if (keyPressed === 40 && !goingUp) {
+                dx = 0;
+                dy = gridSize;
+                changingDirection = true;
+            }
+        }
+
+        function hasGameEnded() {
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+            }
+
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x >= canvas.width;
+            const hitTopWall = snake[0].x < 0; // Fix standard typo from previous iteration
+            const hitBottomWall = snake[0].y >= canvas.height;
+            const hitActualTopWall = snake[0].y < 0;
+
+            return hitLeftWall || hitRightWall || hitActualTopWall || hitBottomWall;
+        }
+
+        function handleGameOver() {
+            clearInterval(gameInterval);
+            
+            // Check if the final score beat the previous record session to flash a message
+            const oldHighScore = localStorage.getItem("snakeHighScoreRecord") || 0;
+            if (score > oldHighScore && score > 0) {
+                newHighScoreMsg.style.display = "block";
+                localStorage.setItem("snakeHighScoreRecord", score);
+            }
+            
+            gameOverText.style.display = "block";
+        }
+    </script>
+</body>
+</html>
